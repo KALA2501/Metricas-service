@@ -179,4 +179,131 @@ router.get('/paciente/:pacienteId/detalles', (req, res) => {
 });
 
 
+// 9. Duración promedio por paciente - Mercado
+router.get('/mercado/duracion-promedio/:medicoId', (req, res) => {
+  const medicoId = req.params.medicoId;
+  const query = `
+    SELECT p.nombre, vdm.duracion_promedio
+    FROM vista_duracion_promedio_mercado vdm
+    JOIN vinculacion v ON vdm.paciente_id = v.fk_id_paciente
+    JOIN paciente p ON v.fk_id_paciente = p.pk_id
+    WHERE v.fk_id_medico = ?
+  `;
+  db.query(query, [medicoId], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+// 10. Consultas a la lista promedio - Mercado
+router.get('/mercado/consultas-lista/:medicoId', (req, res) => {
+  const medicoId = req.params.medicoId;
+  const query = `
+    SELECT p.nombre, vclm.promedio_consultas_lista
+    FROM vista_consultas_lista_mercado vclm
+    JOIN vinculacion v ON vclm.paciente_id = v.fk_id_paciente
+    JOIN paciente p ON v.fk_id_paciente = p.pk_id
+    WHERE v.fk_id_medico = ?
+  `;
+  db.query(query, [medicoId], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+// 11. Precisión de items - Mercado
+router.get('/mercado/precision-items/:medicoId', (req, res) => {
+  const medicoId = req.params.medicoId;
+  const query = `
+    SELECT p.nombre, vpm.total_correctos, vpm.total_incorrectos
+    FROM vista_precision_items_mercado vpm
+    JOIN vinculacion v ON vpm.paciente_id = v.fk_id_paciente
+    JOIN paciente p ON v.fk_id_paciente = p.pk_id
+    WHERE v.fk_id_medico = ?
+  `;
+  db.query(query, [medicoId], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+// 12. Errores en cantidad - Mercado
+router.get('/mercado/errores-cantidad/:medicoId', (req, res) => {
+  const medicoId = req.params.medicoId;
+  const query = `
+    SELECT p.nombre, vem.promedio_desviacion, vem.cantidad_incorrecta_prom
+    FROM vista_errores_cantidad_mercado vem
+    JOIN vinculacion v ON vem.paciente_id = v.fk_id_paciente
+    JOIN paciente p ON v.fk_id_paciente = p.pk_id
+    WHERE v.fk_id_medico = ?
+  `;
+  db.query(query, [medicoId], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+// 13. Tiempo promedio mirando la lista - Mercado
+router.get('/mercado/tiempo-lista/:medicoId', (req, res) => {
+  const medicoId = req.params.medicoId;
+  const query = `
+    SELECT p.nombre, vtlm.tiempo_promedio_lista
+    FROM vista_tiempo_lista_mercado vtlm
+    JOIN vinculacion v ON vtlm.paciente_id = v.fk_id_paciente
+    JOIN paciente p ON v.fk_id_paciente = p.pk_id
+    WHERE v.fk_id_medico = ?
+  `;
+  db.query(query, [medicoId], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+// GET /paciente/:pacienteId/mercado-detalles
+router.get('/paciente/:pacienteId/mercado-detalles', (req, res) => {
+  const pacienteId = req.params.pacienteId;
+
+  const queries = {
+    historialActividades: `
+      SELECT fecha, cantidad
+      FROM vista_historial_actividades_mercado
+      WHERE paciente_id = ?
+    `,
+    evolucionTiempo: `
+      SELECT DATE(timestamp) AS fecha, ROUND(AVG(duracion), 2) AS duracion
+      FROM vista_evolucion_tiempo_mercado
+      WHERE paciente_id = ?
+      GROUP BY DATE(timestamp)
+    `,
+    precisionPorSesion: `
+      SELECT DATE(timestamp) AS fecha,
+             SUM(correctItemsCount) AS correctos,
+             SUM(incorrectItemsCount) AS incorrectos
+      FROM vista_precision_sesiones_mercado
+      WHERE paciente_id = ?
+      GROUP BY DATE(timestamp)
+    `
+  };
+
+  const resultados = {};
+  const keys = Object.keys(queries);
+
+  const ejecutarQuery = (index = 0) => {
+    if (index >= keys.length) return res.json(resultados);
+
+    const key = keys[index];
+    db.query(queries[key], [pacienteId], (err, data) => {
+      if (err) {
+        console.error(`❌ Error en consulta "${key}":`, err.message);
+        resultados[key] = [];
+      } else {
+        resultados[key] = data;
+      }
+      ejecutarQuery(index + 1);
+    });
+  };
+
+  ejecutarQuery();
+});
+
 module.exports = router;
