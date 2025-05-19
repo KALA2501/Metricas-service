@@ -306,4 +306,103 @@ router.get('/paciente/:pacienteId/mercado-detalles', (req, res) => {
   ejecutarQuery();
 });
 
+// 14. Métricas individuales - Actividad de Cubiertos
+router.get('/paciente/:pacienteId/cubiertos-detalles', (req, res) => {
+  const pacienteId = req.params.pacienteId;
+
+  const queries = {
+    historialTiempo: `
+      SELECT fecha, tiempo_promedio
+      FROM vista_tiempo_promedio_cubiertos
+      WHERE paciente_id = ?
+    `,
+    erroresPorSesion: `
+      SELECT fecha, errores_totales
+      FROM vista_errores_sesion_cubiertos
+      WHERE paciente_id = ?
+    `,
+    erroresPorCubierto: `
+      SELECT *
+      FROM vista_errores_por_cubierto
+      WHERE paciente_id = ?
+    `,
+    erroresPorPlato: `
+      SELECT *
+      FROM vista_errores_por_plato
+      WHERE paciente_id = ?
+    `
+  };
+
+  const resultados = {};
+  const keys = Object.keys(queries);
+
+  const ejecutarQuery = (index = 0) => {
+    if (index >= keys.length) return res.json(resultados);
+
+    const key = keys[index];
+    db.query(queries[key], [pacienteId], (err, data) => {
+      if (err) {
+        console.error(`❌ Error en consulta "${key}":`, err.message);
+        resultados[key] = [];
+      } else {
+        resultados[key] = data;
+      }
+      ejecutarQuery(index + 1);
+    });
+  };
+
+  ejecutarQuery();
+});
+
+// 15. Métricas generales de cubiertos (por médico)
+router.get('/cubiertos/general/:medicoId', (req, res) => {
+  const medicoId = req.params.medicoId;
+
+  const queries = {
+    erroresPorCubierto: `
+      SELECT p.nombre, v.*
+      FROM vista_errores_por_cubierto v
+      JOIN vinculacion vin ON v.paciente_id = vin.fk_id_paciente
+      JOIN paciente p ON p.pk_id = v.paciente_id
+      WHERE vin.fk_id_medico = ?
+    `,
+    erroresPorPlato: `
+      SELECT p.nombre, v.*
+      FROM vista_errores_por_plato v
+      JOIN vinculacion vin ON v.paciente_id = vin.fk_id_paciente
+      JOIN paciente p ON p.pk_id = v.paciente_id
+      WHERE vin.fk_id_medico = ?
+    `,
+    tiempoPromedio: `
+      SELECT p.nombre, ROUND(AVG(mc.tiempo), 2) AS tiempo_promedio
+      FROM metricas_cubiertos mc
+      JOIN vinculacion vin ON mc.user_id = vin.fk_id_paciente
+      JOIN paciente p ON p.pk_id = vin.fk_id_paciente
+      WHERE vin.fk_id_medico = ?
+      GROUP BY p.nombre
+    `
+  };
+
+  const resultados = {};
+  const keys = Object.keys(queries);
+
+  const ejecutarQuery = (index = 0) => {
+    if (index >= keys.length) return res.json(resultados);
+
+    const key = keys[index];
+    db.query(queries[key], [medicoId], (err, data) => {
+      if (err) {
+        console.error(`❌ Error en consulta "${key}":`, err.message);
+        resultados[key] = [];
+      } else {
+        resultados[key] = data;
+      }
+      ejecutarQuery(index + 1);
+    });
+  };
+
+  ejecutarQuery();
+});
+
+
 module.exports = router;
