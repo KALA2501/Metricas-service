@@ -19,6 +19,7 @@
   "description": "",
   "dependencies": {
     "cors": "^2.8.5",
+    "eureka-js-client": "^4.5.0",
     "express": "^5.1.0",
     "mysql2": "^3.14.1"
   }
